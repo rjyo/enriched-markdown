@@ -3,8 +3,10 @@
 #import "RenderContext.h"
 
 NSString *const CodeAttributeName = @"Code";
+const CGFloat CodeHorizontalPadding = 3.0;
+const CGFloat CodeHorizontalMargin = 0.0;
 
-static const CGFloat kCodeBackgroundCornerRadius = 2.0;
+static const CGFloat kCodeBackgroundCornerRadius = 4.0;
 static const CGFloat kCodeBackgroundBorderWidth = 0.5;
 
 @implementation CodeBackground {
@@ -93,6 +95,19 @@ static const CGFloat kCodeBackgroundBorderWidth = 0.5;
                                    // OPTIMIZATION: Middle lines use the usedRect of the fragment directly
                                    finalRect = CGRectMake(usedRect.origin.x + origin.x, usedRect.origin.y + origin.y,
                                                           usedRect.size.width, usedRect.size.height);
+                                 }
+
+                                 // Grow into the kerned gap CodeRenderer reserved. The trailing kern
+                                 // already widens the last glyph's advance by padding + margin, so
+                                 // the right edge gives the margin back. A span starting a line has
+                                 // no kerned gap before it, so it keeps its left edge.
+                                 CGFloat lineStart = usedRect.origin.x + origin.x;
+                                 if (isFirst && finalRect.origin.x - lineStart >= CodeHorizontalPadding - 0.5) {
+                                   finalRect.origin.x -= CodeHorizontalPadding;
+                                   finalRect.size.width += CodeHorizontalPadding;
+                                 }
+                                 if (isLast) {
+                                   finalRect.size.width -= CodeHorizontalMargin;
                                  }
 
                                  // Ensure consistent height and no gaps

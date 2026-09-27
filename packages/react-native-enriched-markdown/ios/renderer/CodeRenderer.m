@@ -59,7 +59,18 @@
     // Store block line height directly for CodeBackground to use
     codeAttributes[@"BlockLineHeight"] = @(UIFontLineHeight(blockFont));
 
+    // Kerning reserves horizontal room for the background's padding without
+    // adding characters, so copy/select still yield the bare code.
+    codeAttributes[NSKernAttributeName] = @0;
     [output setAttributes:codeAttributes range:range];
+    [output addAttribute:NSKernAttributeName
+                   value:@(CodeHorizontalPadding + CodeHorizontalMargin)
+                   range:NSMakeRange(NSMaxRange(range) - 1, 1)];
+    if (range.location > 0) {
+      [output addAttribute:NSKernAttributeName
+                     value:@(CodeHorizontalPadding + CodeHorizontalMargin)
+                     range:NSMakeRange(range.location - 1, 1)];
+    }
   }
 }
 
