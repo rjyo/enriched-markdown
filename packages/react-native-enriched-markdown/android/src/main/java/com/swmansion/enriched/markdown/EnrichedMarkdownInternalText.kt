@@ -108,6 +108,32 @@ class EnrichedMarkdownInternalText
       onContextMenuItemPress = onPress
     }
 
+    /**
+     * The Editor enables its selection controller only when the text has a
+     * layout and the view's root is a window, and re-checks that only on
+     * setText/setMovementMethod. Segments are laid out while their subtree is
+     * still detached (always the case inside FlatList cells), so the controller
+     * stays disabled and long-press logs "TextView does not support text
+     * selection". Re-setting the movement method re-runs that check once
+     * attached. Skipped while a selection is live: it would drop the handles.
+     */
+    private fun refreshSelectionControllers() {
+      if (!isTextSelectable || !isAttachedToWindow || layout == null || hasSelection()) return
+      val movement = movementMethod
+      movementMethod = null
+      movementMethod = movement
+    }
+
+    override fun onAttachedToWindow() {
+      super.onAttachedToWindow()
+      refreshSelectionControllers()
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+      super.onLayout(changed, left, top, right, bottom)
+      if (changed) refreshSelectionControllers()
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
       if (checkboxTouchHelper.onTouchEvent(event)) {
         if (event.action == MotionEvent.ACTION_DOWN) {
