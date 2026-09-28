@@ -23,7 +23,9 @@ EnrichedMarkdownTextShadowNode::EnrichedMarkdownTextShadowNode(const ShadowNode 
       lastExactMeasurementCounter_(
           static_cast<const EnrichedMarkdownTextShadowNode &>(sourceShadowNode).lastExactMeasurementCounter_),
       lastExactMeasurementSize_(
-          static_cast<const EnrichedMarkdownTextShadowNode &>(sourceShadowNode).lastExactMeasurementSize_)
+          static_cast<const EnrichedMarkdownTextShadowNode &>(sourceShadowNode).lastExactMeasurementSize_),
+      lastExactMeasurementMaxWidth_(
+          static_cast<const EnrichedMarkdownTextShadowNode &>(sourceShadowNode).lastExactMeasurementMaxWidth_)
 {
   const auto &oldProps = *std::static_pointer_cast<const EnrichedMarkdownTextProps>(sourceShadowNode.getProps());
   const auto &newProps = *std::static_pointer_cast<const EnrichedMarkdownTextProps>(this->getProps());
@@ -60,7 +62,7 @@ Size EnrichedMarkdownTextShadowNode::measureContent(const LayoutContext &layoutC
 
   return ENRMMeasureMarkdownContent<EnrichedMarkdownTextProps, EnrichedMarkdownText>(
       typedProps, getStateData().getComponentViewRef(), receivedCounter, lastExactMeasurementCounter_,
-      lastExactMeasurementSize_, MarkdownFlavor::CommonMark, layoutContext, layoutConstraints,
+      lastExactMeasurementSize_, lastExactMeasurementMaxWidth_, MarkdownFlavor::CommonMark, layoutContext, layoutConstraints,
       ^(EnrichedMarkdownText *view, CGFloat maxWidth, CGFloat fontScale) {
         return ENRMMeasureMarkdownViewFree(*props, maxWidth, fontScale, pointScaleFactor, resolvedLayoutDirection);
       });

@@ -88,7 +88,8 @@ static inline bool ENRMPropsNeedExactStreamingMeasurement(const PropsT &oldProps
 template <typename PropsT, typename ViewT>
 static inline Size
 ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void> &componentViewRef, int receivedCounter,
-                           int &lastExactMeasurementCounter, CGSize &lastExactMeasurementSize, MarkdownFlavor flavor,
+                           int &lastExactMeasurementCounter, CGSize &lastExactMeasurementSize,
+                           CGFloat &lastExactMeasurementMaxWidth, MarkdownFlavor flavor,
                            const LayoutContext &layoutContext, const LayoutConstraints &layoutConstraints,
                            CGSize (^measureUncached)(ViewT *view, CGFloat maxWidth, CGFloat fontScale))
 {
@@ -101,7 +102,10 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
   // bumps lastExactMeasurementCounter, the rest land here. Return the freshly
   // measured size, not the view's mailbox — mid-pass the frame isn't committed,
   // so the mailbox is a generation stale and would freeze the height.
-  if (typedProps.streamingAnimation && view && receivedCounter <= lastExactMeasurementCounter) {
+  // Both sizes belong to one width: a resized container (split view, rotation)
+  // must re-measure, or text reflowed wider keeps its narrow-width height.
+  if (typedProps.streamingAnimation && view && receivedCounter <= lastExactMeasurementCounter &&
+      lastExactMeasurementMaxWidth == maxWidth) {
     if (lastExactMeasurementSize.width > 0 && lastExactMeasurementSize.height > 0) {
       return ENRMClampMeasuredSize(lastExactMeasurementSize, layoutConstraints);
     }
@@ -132,6 +136,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
   if (typedProps.streamingAnimation) {
     lastExactMeasurementCounter = receivedCounter;
     lastExactMeasurementSize = size;
+    lastExactMeasurementMaxWidth = maxWidth;
   }
 
   return ENRMClampMeasuredSize(size, layoutConstraints);

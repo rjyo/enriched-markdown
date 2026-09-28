@@ -38,6 +38,7 @@ private:
   int localHeightRecalculationCounter_{0};
   mutable int lastExactMeasurementCounter_{0};
   mutable CGSize lastExactMeasurementSize_{0, 0};
+  mutable CGFloat lastExactMeasurementMaxWidth_{-1};
 };
 
 } // namespace facebook::react
