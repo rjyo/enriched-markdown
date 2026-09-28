@@ -17,9 +17,11 @@ on:
         required: true
         type: number
 
+# Any comment on the pull request creates a run in this group (its job is
+# then skipped), so only benchmark-triggering events may cancel one in progress.
 concurrency:
   group: ios-benchmarks-${{ github.event.pull_request.number || github.event.issue.number || inputs.pull_request }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'issue_comment' || startsWith(github.event.comment.body, '/benchmark ios') }}
 
 jobs:
   compare:
@@ -31,21 +33,12 @@ jobs:
       || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/benchmark ios') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
       || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       issues: write
       pull-requests: write
     steps:
-      - name: Resolve the pull request
-        id: pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pull_request }}
-        run: |
-          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
-          echo "base=$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefOid --jq .baseRefOid)" >> "$GITHUB_OUTPUT"
-          echo "head=$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)" >> "$GITHUB_OUTPUT"
-
       - name: Acknowledge the comment
         if: github.event_name == 'issue_comment'
         env:
@@ -53,6 +46,27 @@ jobs:
         run: |
           gh api --method POST "repos/$GITHUB_REPOSITORY/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content=rocket --silent || true
+
+      # Captured into variables before use: a failing `gh` inside an echo
+      # would pass unnoticed and leave the base empty.
+      - name: Resolve the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pull_request }}
+        run: |
+          set -euo pipefail
+          REFS=$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefOid,headRefOid --jq '"\(.baseRefOid) \(.headRefOid)"')
+          read -r BASE HEAD <<< "$REFS"
+          if [[ -z "$BASE" || -z "$HEAD" ]]; then
+            echo "::error::Could not resolve the base and head of pull request #$NUMBER"
+            exit 1
+          fi
+          {
+            echo "number=$NUMBER"
+            echo "base=$BASE"
+            echo "head=$HEAD"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -114,6 +128,5 @@ jobs:
           EOF
           cat "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
           # Best effort: a pull request from a fork gets a read-only token.
-          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RESULTS" --edit-last \
-            || gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RESULTS" \
+          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RESULTS" --edit-last --create-if-none \
             || echo "::warning::Could not post the benchmark comment; the table is in the job summary."

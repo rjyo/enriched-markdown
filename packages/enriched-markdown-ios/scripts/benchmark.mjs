@@ -81,7 +81,10 @@ function main(options) {
 function runBenchmarksAt(ref, options, udid) {
   const commit = git(['rev-parse', '--verify', `${ref}^{commit}`]).trim();
   const worktree = path.join(workDir, `worktree-${commit.slice(0, 12)}`);
+  // An interrupted run leaves the worktree registered; prune it, or the
+  // directory removal alone makes the next add fail.
   rmSync(worktree, { recursive: true, force: true });
+  git(['worktree', 'prune']);
   git(['worktree', 'add', '--detach', worktree, commit]);
   try {
     // The LaTeX target's vendored sources are symlinks materialized by
