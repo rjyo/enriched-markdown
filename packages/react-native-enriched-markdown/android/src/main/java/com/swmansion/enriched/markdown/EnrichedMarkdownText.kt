@@ -26,6 +26,7 @@ import com.swmansion.enriched.markdown.utils.common.BreakStrategyUtils
 import com.swmansion.enriched.markdown.utils.text.TailFadeInAnimator
 import com.swmansion.enriched.markdown.utils.text.interaction.CheckboxTouchHelper
 import com.swmansion.enriched.markdown.utils.text.view.LinkLongPressMovementMethod
+import com.swmansion.enriched.markdown.utils.text.view.LongPressSlopGuard
 import com.swmansion.enriched.markdown.utils.text.view.SelectionMenuConfig
 import com.swmansion.enriched.markdown.utils.text.view.applySelectableState
 import com.swmansion.enriched.markdown.utils.text.view.applySelectionColors
@@ -55,6 +56,7 @@ class EnrichedMarkdownText
     private var onLinkPressCallback: ((String) -> Unit)? = null
     private var onLinkLongPressCallback: ((String) -> Unit)? = null
     private val checkboxTouchHelper = CheckboxTouchHelper(this)
+    private val longPressSlopGuard = LongPressSlopGuard(this)
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
@@ -390,6 +392,7 @@ class EnrichedMarkdownText
         return true
       }
       val result = super.onTouchEvent(event)
+      longPressSlopGuard.onTouchEvent(event)
       when (event.action) {
         MotionEvent.ACTION_DOWN -> cancelJSTouchForLinkTap(event)
         else -> reallowParentInterceptIfLinkReleased()

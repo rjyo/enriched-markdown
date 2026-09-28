@@ -13,6 +13,7 @@ import com.swmansion.enriched.markdown.spoiler.SpoilerOverlay
 import com.swmansion.enriched.markdown.spoiler.SpoilerOverlayDrawer
 import com.swmansion.enriched.markdown.utils.text.interaction.CheckboxTouchHelper
 import com.swmansion.enriched.markdown.utils.text.view.LinkLongPressMovementMethod
+import com.swmansion.enriched.markdown.utils.text.view.LongPressSlopGuard
 import com.swmansion.enriched.markdown.utils.text.view.SelectionMenuConfig
 import com.swmansion.enriched.markdown.utils.text.view.applySelectableState
 import com.swmansion.enriched.markdown.utils.text.view.cancelJSTouchForCheckboxTap
@@ -34,6 +35,7 @@ class EnrichedMarkdownInternalText
     var lastElementMarginBottom: Float = 0f
 
     private val checkboxTouchHelper = CheckboxTouchHelper(this)
+    private val longPressSlopGuard = LongPressSlopGuard(this)
 
     var onTaskListItemPressCallback: ((taskIndex: Int, checked: Boolean, itemText: String) -> Unit)?
       get() = checkboxTouchHelper.onCheckboxTap
@@ -142,6 +144,7 @@ class EnrichedMarkdownInternalText
         return true
       }
       val result = super.onTouchEvent(event)
+      longPressSlopGuard.onTouchEvent(event)
       when (event.action) {
         MotionEvent.ACTION_DOWN -> cancelJSTouchForLinkTap(event)
         else -> reallowParentInterceptIfLinkReleased()
