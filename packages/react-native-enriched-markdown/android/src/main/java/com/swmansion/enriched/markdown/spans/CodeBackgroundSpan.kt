@@ -61,7 +61,14 @@ class CodeBackgroundSpan(
     val finalBottom = adjustBottomForMargin(text, end, bottom)
     val leadingMargin = leadingMarginAt(text, start)
     val startX = if (isFirst) getHorizontalOffset(text, start, end, spanStart, p, leadingMargin) + left else left.toFloat() + leadingMargin
-    val endX = if (isLast) getHorizontalOffset(text, start, end, spanEnd, p, leadingMargin) + left else right.toFloat()
+    // A span that wraps stops at the line's last glyph, not the right margin: the
+    // gap left by a word that didn't fit stays unpainted, as on iOS.
+    val endX =
+      if (isLast) {
+        getHorizontalOffset(text, start, end, spanEnd, p, leadingMargin) + left
+      } else {
+        getHorizontalOffset(text, start, end, max(visibleLineEnd(text, start, end), max(spanStart, start)), p, leadingMargin) + left
+      }
 
     rect.set(min(startX, endX), top.toFloat(), max(startX, endX), finalBottom.toFloat())
 
@@ -94,6 +101,16 @@ class CodeBackgroundSpan(
     val textPaint = paint as? TextPaint ?: TextPaint(paint)
     val layout = StaticLayout.Builder.obtain(lineText, 0, lineText.length, textPaint, 10000).build()
     return layout.getPrimaryHorizontal(index - lineStart)
+  }
+
+  private fun visibleLineEnd(
+    text: CharSequence,
+    lineStart: Int,
+    lineEnd: Int,
+  ): Int {
+    var index = lineEnd
+    while (index > lineStart && text[index - 1].isWhitespace()) index--
+    return index
   }
 
   private fun drawShapes(
