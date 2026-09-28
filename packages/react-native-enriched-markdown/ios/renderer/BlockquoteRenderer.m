@@ -43,6 +43,22 @@ static NSString *const kNestedInfoRangeKey = @"range";
     return;
   }
 
+  // The quote's own marginBottom separates it from what follows; drop the last
+  // child's trailing margin so the border doesn't run past the text. Nested
+  // quotes keep it as the gap before their parent's next block.
+  if (currentDepth == 0) {
+    [output enumerateAttribute:NSParagraphStyleAttributeName
+                       inRange:[output.string paragraphRangeForRange:NSMakeRange(end - 1, 0)]
+                       options:0
+                    usingBlock:^(NSParagraphStyle *style, NSRange range, BOOL *stop) {
+                      if (style.paragraphSpacing <= 0)
+                        return;
+                      NSMutableParagraphStyle *updated = [style mutableCopy];
+                      updated.paragraphSpacing = 0;
+                      [output addAttribute:NSParagraphStyleAttributeName value:updated range:range];
+                    }];
+  }
+
   [self applyStylingAndSpacing:output start:start end:end currentDepth:currentDepth context:context];
 }
 
@@ -149,15 +165,11 @@ static NSString *const kNestedInfoRangeKey = @"range";
   [self enumerateNonListRangesIn:output
                            range:innerRange
                       usingBlock:^(NSRange nonListRange) {
-                        NSMutableParagraphStyle *paragraphStyle =
-                            getOrCreateParagraphStyle(output, nonListRange.location);
-                        paragraphStyle.firstLineHeadIndent = totalIndent;
-                        paragraphStyle.headIndent = totalIndent;
-                        if (padding > 0) {
-                          paragraphStyle.tailIndent = -padding;
-                        }
-                        [output addAttribute:NSParagraphStyleAttributeName value:paragraphStyle range:nonListRange];
-                        applyLineHeight(output, nonListRange, lineHeight);
+                        [self stampParagraphsIn:output
+                                          range:nonListRange
+                                         indent:totalIndent
+                                        padding:padding
+                                     lineHeight:lineHeight];
                       }];
 
   if (padding > 0) {
@@ -205,13 +217,36 @@ static NSString *const kNestedInfoRangeKey = @"range";
     [self enumerateNonListRangesIn:output
                              range:nestedRange
                         usingBlock:^(NSRange nonListRange) {
-                          NSMutableParagraphStyle *style = getOrCreateParagraphStyle(output, nonListRange.location);
-                          style.firstLineHeadIndent = indent;
-                          style.headIndent = indent;
-                          style.tailIndent = padding > 0 ? -padding : 0;
-                          [output addAttribute:NSParagraphStyleAttributeName value:style range:nonListRange];
+                          [self stampParagraphsIn:output range:nonListRange indent:indent padding:padding lineHeight:0];
                         }];
   }
+}
+
+// Indents each paragraph style run on its own, so paragraphs keep their own
+// margins and block spacers (1pt lines carrying a margin) keep their 1pt height.
+// Stamping the first run's style over the whole range would turn the spacer
+// after a list into a full text line and flatten every paragraph's spacing.
+- (void)stampParagraphsIn:(NSMutableAttributedString *)output
+                    range:(NSRange)range
+                   indent:(CGFloat)indent
+                  padding:(CGFloat)padding
+               lineHeight:(CGFloat)lineHeight
+{
+  [output enumerateAttribute:NSParagraphStyleAttributeName
+                     inRange:range
+                     options:0
+                  usingBlock:^(NSParagraphStyle *style, NSRange runRange, BOOL *stop) {
+                    NSMutableParagraphStyle *updated =
+                        style ? [style mutableCopy] : [[NSMutableParagraphStyle alloc] init];
+                    updated.firstLineHeadIndent = indent;
+                    updated.headIndent = indent;
+                    updated.tailIndent = padding > 0 ? -padding : 0;
+                    [output addAttribute:NSParagraphStyleAttributeName value:updated range:runRange];
+                    BOOL isSpacer = style && style.minimumLineHeight == 1 && style.maximumLineHeight == 1;
+                    if (!isSpacer) {
+                      applyLineHeight(output, runRange, lineHeight);
+                    }
+                  }];
 }
 
 - (void)enumerateNonListRangesIn:(NSMutableAttributedString *)output

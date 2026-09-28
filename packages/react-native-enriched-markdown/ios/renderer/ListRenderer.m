@@ -91,9 +91,10 @@ static void applyListItemSpacing(NSMutableAttributedString *output, RenderContex
   // first rendered number.
   context.listItemNumber = startNumber - 1;
 
+  // A list inside a blockquote takes the quote's text color, like its paragraphs.
   [context setBlockStyle:_isOrdered ? BlockTypeOrderedList : BlockTypeUnorderedList
                     font:_config.listStyleFont
-                   color:_config.listStyleColor
+                   color:context.blockquoteDepth > 0 ? _config.blockquoteColor : _config.listStyleColor
             headingLevel:0];
 
   [_rendererFactory renderChildrenOfNode:node into:output context:context];

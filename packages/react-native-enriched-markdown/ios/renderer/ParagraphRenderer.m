@@ -31,8 +31,12 @@
   }
 
   NSUInteger start = output.length;
+  // Paragraphs directly inside a blockquote keep their block margins so spacing
+  // between blocks (e.g. a paragraph and the list after it) matches the
+  // top-level document. List content stays tight - lists own their item spacing.
   BOOL shouldApplyMargin =
-      (context.currentBlockType == BlockTypeNone || context.currentBlockType == BlockTypeParagraph);
+      (context.currentBlockType == BlockTypeNone || context.currentBlockType == BlockTypeParagraph ||
+       context.currentBlockType == BlockTypeBlockquote);
 
   // Detect if the paragraph is a wrapper for a standalone image to use image-specific spacing
   BOOL isBlockImage = (node.children.count == 1 && ((MarkdownASTNode *)node.children[0]).type == MarkdownNodeTypeImage);

@@ -22,7 +22,8 @@
     return;
 
   BlockStyle *blockStyle = [context getBlockStyle];
-  RCTUIColor *configStrongColor = [_config strongColor];
+  // Bold text inside a blockquote keeps the quote's color; weight alone carries the emphasis.
+  RCTUIColor *configStrongColor = context.blockquoteDepth > 0 ? nil : [_config strongColor];
   RCTUIColor *calculatedColor =
       configStrongColor ? [RenderContext calculateStrongColor:configStrongColor blockColor:blockStyle.color] : nil;
   NSString *strongFontFamily = [_config strongFontFamily];

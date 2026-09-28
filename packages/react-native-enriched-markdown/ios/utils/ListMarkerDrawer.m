@@ -1,4 +1,5 @@
 #import "ListMarkerDrawer.h"
+#import "BlockquoteBorder.h"
 #import "ENRMUIKit.h"
 #import "ListItemRenderer.h"
 #import "ParagraphStyleUtils.h"
@@ -58,6 +59,8 @@ extern NSString *const ListItemMarkerStartAttribute;
                                  CGPoint glyphLoc = [layoutManager locationForGlyphAtIndex:glyphRange.location];
                                  CGFloat baselineY = origin.y + rect.origin.y + glyphLoc.y;
                                  UIFont *font = attrs[NSFontAttributeName] ?: [self defaultFont];
+                                 // Markers of a list inside a blockquote follow the quote's text color.
+                                 BOOL inBlockquote = attrs[BlockquoteDepthAttributeName] != nil;
 
                                  for (ENRMListMarkerDescriptor *marker in markers) {
                                    CGFloat markerX = isRTL ? origin.x + container.size.width - marker.indent + gap
@@ -72,12 +75,16 @@ extern NSString *const ListItemMarkerStartAttribute;
                                    } else if (marker.listType == ListTypeUnordered) {
                                      [self drawBulletAtX:markerX
                                                  centerY:baselineY - (font.xHeight + font.capHeight) / 4.0
-                                                   depth:marker.depth];
+                                                   depth:marker.depth
+                                                   color:inBlockquote ? [_config blockquoteColor]
+                                                                      : [_config listStyleBulletColor]];
                                    } else {
                                      [self drawOrderedMarkerAtX:markerX
                                                          number:marker.number
                                                       baselineY:baselineY
-                                                          isRTL:isRTL];
+                                                          isRTL:isRTL
+                                                          color:inBlockquote ? [_config blockquoteColor]
+                                                                             : [_config listStyleMarkerColor]];
                                    }
                                  }
                                }];
@@ -133,7 +140,7 @@ extern NSString *const ListItemMarkerStartAttribute;
   [checkmark stroke];
 }
 
-- (void)drawBulletAtX:(CGFloat)x centerY:(CGFloat)y depth:(NSInteger)depth
+- (void)drawBulletAtX:(CGFloat)x centerY:(CGFloat)y depth:(NSInteger)depth color:(RCTUIColor *)color
 {
   CGFloat size = [_config listStyleBulletSize];
   CGRect rect = CGRectMake(x - size / 2.0, y - size / 2.0, size, size);
@@ -141,18 +148,18 @@ extern NSString *const ListItemMarkerStartAttribute;
       executeDrawing:^(CGContextRef ctx) {
         switch (depth) {
           case 0:
-            [[_config listStyleBulletColor] setFill];
+            [color setFill];
             CGContextFillEllipseInRect(ctx, rect);
             break;
           case 1: {
             CGFloat lineWidth = MAX(1.0, size * 0.15);
-            [[_config listStyleBulletColor] setStroke];
+            [color setStroke];
             CGContextSetLineWidth(ctx, lineWidth);
             CGContextStrokeEllipseInRect(ctx, CGRectInset(rect, lineWidth / 2.0, lineWidth / 2.0));
             break;
           }
           default:
-            [[_config listStyleBulletColor] setFill];
+            [color setFill];
             CGContextFillRect(ctx, rect);
             break;
         }
@@ -161,13 +168,17 @@ extern NSString *const ListItemMarkerStartAttribute;
                    y:y];
 }
 
-- (void)drawOrderedMarkerAtX:(CGFloat)boundaryX number:(NSInteger)number baselineY:(CGFloat)baselineY isRTL:(BOOL)isRTL
+- (void)drawOrderedMarkerAtX:(CGFloat)boundaryX
+                      number:(NSInteger)number
+                   baselineY:(CGFloat)baselineY
+                       isRTL:(BOOL)isRTL
+                       color:(RCTUIColor *)color
 {
   NSString *text =
       isRTL ? [NSString stringWithFormat:@".%ld", (long)number] : [NSString stringWithFormat:@"%ld.", (long)number];
   UIFont *font = [_config listMarkerFont] ?: [self defaultFont];
 
-  NSDictionary *mAttrs = @{NSFontAttributeName : font, NSForegroundColorAttributeName : [_config listStyleMarkerColor]};
+  NSDictionary *mAttrs = @{NSFontAttributeName : font, NSForegroundColorAttributeName : color};
   CGSize size = [text sizeWithAttributes:mAttrs];
   CGFloat drawX = isRTL ? boundaryX : boundaryX - size.width;
 
