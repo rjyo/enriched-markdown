@@ -24,7 +24,10 @@
   UIFontDescriptorSymbolicTraits traits = blockFont.fontDescriptor.symbolicTraits;
   UIFontWeight weight = (traits & UIFontDescriptorTraitBold) ? UIFontWeightBold : UIFontWeightRegular;
 
-  CGFloat codeFontSize = _config.codeFontSize > 0 ? _config.codeFontSize : blockStyle.fontSize;
+  // Paragraphs set their block style from a cached font and leave fontSize at
+  // 0, which sized inline code at the system default; the resolved font is
+  // the real (Dynamic Type-scaled) body size.
+  CGFloat codeFontSize = _config.codeFontSize > 0 ? _config.codeFontSize : blockFont.pointSize;
 
   NSString *codeFontFamily = _config.codeFontFamily;
   UIFont *codeFont;
