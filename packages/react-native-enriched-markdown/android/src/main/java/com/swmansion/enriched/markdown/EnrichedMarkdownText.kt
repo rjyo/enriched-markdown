@@ -26,6 +26,7 @@ import com.swmansion.enriched.markdown.utils.common.BreakStrategyUtils
 import com.swmansion.enriched.markdown.utils.text.TailFadeInAnimator
 import com.swmansion.enriched.markdown.utils.text.interaction.CheckboxTouchHelper
 import com.swmansion.enriched.markdown.utils.text.view.LinkLongPressMovementMethod
+import com.swmansion.enriched.markdown.utils.text.view.DoubleTapSelectionGuard
 import com.swmansion.enriched.markdown.utils.text.view.LongPressSlopGuard
 import com.swmansion.enriched.markdown.utils.text.view.SelectionMenuConfig
 import com.swmansion.enriched.markdown.utils.text.view.applySelectableState
@@ -391,7 +392,9 @@ class EnrichedMarkdownText
         }
         return true
       }
-      val result = super.onTouchEvent(event)
+      val editorEvent = DoubleTapSelectionGuard.eventForEditor(event)
+      val result = super.onTouchEvent(editorEvent)
+      if (editorEvent !== event) editorEvent.recycle()
       longPressSlopGuard.onTouchEvent(event)
       when (event.action) {
         MotionEvent.ACTION_DOWN -> cancelJSTouchForLinkTap(event)
