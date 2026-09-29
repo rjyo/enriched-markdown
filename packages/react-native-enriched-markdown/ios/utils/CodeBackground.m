@@ -80,9 +80,20 @@ static const CGFloat kCodeBackgroundBorderWidth = 0.5;
 
                                  CGRect finalRect;
                                  if (isFirst || isLast) {
-                                   // Precise bounds are only required for the start and end of the span
-                                   CGRect textRect = [layoutManager boundingRectForGlyphRange:intersect
-                                                                              inTextContainer:textContainer];
+                                   // Precise bounds are only required for the start and end of the span.
+                                   // Selection rects, not boundingRectForGlyphRange: on a line shorter
+                                   // than the font's natural height the bounding rect balloons ~20pt
+                                   // sideways, while the enclosing rects stay on the glyphs.
+                                   __block CGRect textRect = CGRectNull;
+                                   [layoutManager
+                                       enumerateEnclosingRectsForGlyphRange:intersect
+                                                   withinSelectedGlyphRange:NSMakeRange(NSNotFound, 0)
+                                                            inTextContainer:textContainer
+                                                                 usingBlock:^(CGRect enclosing, BOOL *stopEnclosing) {
+                                                                   textRect = CGRectUnion(textRect, enclosing);
+                                                                 }];
+                                   if (CGRectIsNull(textRect))
+                                     return;
                                    finalRect = CGRectMake(textRect.origin.x + origin.x, textRect.origin.y + origin.y,
                                                           textRect.size.width, textRect.size.height);
 
