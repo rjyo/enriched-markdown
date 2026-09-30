@@ -14,7 +14,7 @@ NSString *_Nullable linkURLAtTapLocation(ENRMPlatformTextView *textView, ENRMTap
 /// Returns the link URL at the given character range, or nil if none found.
 NSString *_Nullable linkURLAtRange(ENRMPlatformTextView *textView, NSRange characterRange);
 
-/// Returns YES if the point (in textView coordinates) is on a link or task list checkbox.
+/// Returns YES if the point (in textView coordinates) is on a link, task list checkbox, spoiler or marked range.
 BOOL isPointOnInteractiveElement(ENRMPlatformTextView *textView, CGPoint point);
 
 #ifdef __cplusplus

@@ -278,8 +278,21 @@ export interface SelectionMenuConfig {
 export interface OnContextMenuItemPressEvent {
   itemText: string;
   selectedText: string;
+  /** View-global on iOS: text segments' lengths summed in order, the same
+   * space `markedRanges` uses. */
   selectionStart: CodegenTypes.Int32;
   selectionEnd: CodegenTypes.Int32;
+}
+
+export interface MarkedRangeConfig {
+  id: string;
+  start: CodegenTypes.Int32;
+  end: CodegenTypes.Int32;
+  active: boolean;
+}
+
+export interface MarkPressEvent {
+  id: string;
 }
 
 export interface AccessibilityLabelsListProps {
@@ -497,6 +510,23 @@ export interface NativeProps extends ViewProps {
    * Receives the item label, the currently selected text, and the selection range.
    */
   onContextMenuItemPress?: CodegenTypes.BubblingEventHandler<OnContextMenuItemPressEvent>;
+  /**
+   * Ranges painted with a tinted background and underline, in the same
+   * view-global offsets `onContextMenuItemPress` reports. Tapping one fires
+   * `onMarkPress` with its id.
+   * @platform ios
+   */
+  markedRanges?: ReadonlyArray<Readonly<MarkedRangeConfig>>;
+  /**
+   * Tint for `markedRanges`.
+   * @platform ios
+   */
+  markColor?: ColorValue;
+  /**
+   * Fired when a marked range is tapped.
+   * @platform ios
+   */
+  onMarkPress?: CodegenTypes.BubblingEventHandler<MarkPressEvent>;
   /**
    * Sets the text break strategy on Android (API 23+).
    * @default 'highQuality'

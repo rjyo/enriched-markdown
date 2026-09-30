@@ -248,6 +248,18 @@ class EnrichedMarkdownManager :
     view.setContextMenuItems(parseContextMenuItems(value))
   }
 
+  // Marked ranges are iOS-only for now; the props exist so codegen's
+  // interface is satisfied.
+  override fun setMarkedRanges(
+    view: EnrichedMarkdown?,
+    value: ReadableArray?,
+  ) = Unit
+
+  override fun setMarkColor(
+    view: EnrichedMarkdown?,
+    value: Int?,
+  ) = Unit
+
   @ReactProp(name = "imageRequestHeaders")
   override fun setImageRequestHeaders(
     view: EnrichedMarkdown?,

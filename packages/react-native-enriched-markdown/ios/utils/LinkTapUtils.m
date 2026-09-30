@@ -1,4 +1,5 @@
 #import "LinkTapUtils.h"
+#import "ENRMMarkedRanges.h"
 #import "ENRMSpoilerTapUtils.h"
 #import "ENRMTextHitTest.h"
 
@@ -28,5 +29,6 @@ BOOL isPointOnInteractiveElement(ENRMPlatformTextView *textView, CGPoint point)
     return NO;
 
   NSDictionary *attrs = [ENRMGetAttributedText(textView) attributesAtIndex:charIndex effectiveRange:NULL];
-  return attrs[@"linkURL"] != nil || [attrs[@"TaskItem"] boolValue] || attrs[SpoilerAttributeName] != nil;
+  return attrs[@"linkURL"] != nil || [attrs[@"TaskItem"] boolValue] || attrs[SpoilerAttributeName] != nil ||
+         attrs[ENRMMarkIdAttributeName] != nil;
 }

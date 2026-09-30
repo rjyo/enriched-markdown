@@ -5,6 +5,7 @@
 #import "ENRMAtomicSize.h"
 #import "ENRMImageAttachment.h"
 #import "ENRMMarkdownParser.h"
+#import "ENRMMarkedRanges.h"
 #import "ENRMTailFadeInAnimator.h"
 #import "ENRMTextInteractionUtils.h"
 #import "ENRMTextRenderer.h"
@@ -69,6 +70,11 @@ typedef NS_OPTIONS(NSUInteger, ENRMDirtyFlags) {
 
 static char kENRMSegmentFadeAnimatorKey;
 
+static BOOL ENRMMarkedRangesChanged(const std::vector<EnrichedMarkdownMarkedRangesStruct> &oldRanges,
+                                    const std::vector<EnrichedMarkdownMarkedRangesStruct> &newRanges);
+static NSArray<ENRMMarkedRange *> *ENRMMarkedRangesFromProps(
+    const std::vector<EnrichedMarkdownMarkedRangesStruct> &ranges);
+
 @interface EnrichedMarkdown () <RCTEnrichedMarkdownViewProtocol, UITextViewDelegate, ENRMImageLayoutObserver>
 + (ENRMMd4cFlags *)flagsFromProps:(const EnrichedMarkdownMd4cFlagsStruct &)props;
 - (void)emitLinkPress:(NSString *)url;
@@ -78,7 +84,10 @@ static char kENRMSegmentFadeAnimatorKey;
 - (void)emitContextMenuItemPress:(NSString *)itemText
                     selectedText:(NSString *)selectedText
                   selectionStart:(NSUInteger)selectionStart
-                    selectionEnd:(NSUInteger)selectionEnd;
+                    selectionEnd:(NSUInteger)selectionEnd
+                        textView:(ENRMPlatformTextView *)textView;
+- (void)emitMarkPress:(NSString *)markId;
+- (void)applyMarkedRanges;
 @end
 
 @implementation EnrichedMarkdown {
@@ -127,6 +136,9 @@ static char kENRMSegmentFadeAnimatorKey;
   NSWritingDirection _resolvedLayoutDirection;
 
   ENRMAtomicSize _lastCommittedSize;
+
+  NSArray<ENRMMarkedRange *> *_markedRanges;
+  RCTUIColor *_markColor;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -722,6 +734,9 @@ static char kENRMSegmentFadeAnimatorKey;
     }
   }];
 
+  // Re-rendered segments come back unmarked.
+  [self applyMarkedRanges];
+
   if (self.bounds.size.width > 0) {
     [self setNeedsLayout];
 
@@ -776,7 +791,8 @@ static char kENRMSegmentFadeAnimatorKey;
           [strongSelf emitContextMenuItemPress:itemText
                                   selectedText:selectedText
                                 selectionStart:selectionStart
-                                  selectionEnd:selectionEnd];
+                                  selectionEnd:selectionEnd
+                                      textView:textView];
         });
     return buildEditMenuForSelection(textView.textStorage, textView.selectedRange, segmentMarkdown, strongSelf->_config,
                                      @[ baseMenu ], customItems, strongSelf->_selectionMenuConfig);
@@ -1078,6 +1094,16 @@ static char kENRMSegmentFadeAnimatorKey;
     [self pushWritingDirectionToTableSegments];
   }
 
+  BOOL markColorChanged = newViewProps.markColor != oldViewProps.markColor;
+  if (markColorChanged) {
+    _markColor = isColorMeaningful(newViewProps.markColor) ? RCTUIColorFromSharedColor(newViewProps.markColor) : nil;
+  }
+  if (markColorChanged || ENRMMarkedRangesChanged(oldViewProps.markedRanges, newViewProps.markedRanges)) {
+    _markedRanges = ENRMMarkedRangesFromProps(newViewProps.markedRanges);
+    // Paints the current text; a pending render repaints once it lands.
+    [self applyMarkedRanges];
+  }
+
   if (_dirtyFlags & ENRMDirtyRender) {
     _pendingStyleFingerprint =
         computeStyleFingerprint(newViewProps.markdownStyle) ^ std::hash<bool>{}(newViewProps.allowTrailingMargin);
@@ -1143,6 +1169,8 @@ static char kENRMSegmentFadeAnimatorKey;
   _pendingStyleFingerprint = 0;
   _contextMenuItemTexts = nil;
   _contextMenuItemIcons = nil;
+  _markedRanges = nil;
+  _markColor = nil;
   _fontScaleObserver.allowFontScaling = resetProps->allowFontScaling;
   _accessibilityLabels = nil;
   _spoilerOverlay =
@@ -1260,15 +1288,93 @@ Class<RCTComponentViewProtocol> EnrichedMarkdownCls(void)
                     selectedText:(NSString *)selectedText
                   selectionStart:(NSUInteger)selectionStart
                     selectionEnd:(NSUInteger)selectionEnd
+                        textView:(ENRMPlatformTextView *)textView
 {
+  // Segment-local → view-global, the space markedRanges uses.
+  NSUInteger base = [self globalOffsetOfTextView:textView];
   auto emitter = std::static_pointer_cast<EnrichedMarkdownEventEmitter const>(_eventEmitter);
   if (emitter)
     emitter->onContextMenuItemPress({
         .itemText = std::string(itemText.UTF8String),
         .selectedText = std::string(selectedText.UTF8String),
-        .selectionStart = (int)selectionStart,
-        .selectionEnd = (int)selectionEnd,
+        .selectionStart = (int)(selectionStart + base),
+        .selectionEnd = (int)(selectionEnd + base),
     });
+}
+
+- (void)emitMarkPress:(NSString *)markId
+{
+  auto emitter = std::static_pointer_cast<EnrichedMarkdownEventEmitter const>(_eventEmitter);
+  if (emitter)
+    emitter->onMarkPress({.id = std::string(markId.UTF8String ?: "")});
+}
+
+#pragma mark - Marked ranges
+
+/// Characters before `textView` across the text segments above it; tables,
+/// code blocks and math count as zero.
+- (NSUInteger)globalOffsetOfTextView:(ENRMPlatformTextView *)textView
+{
+  NSUInteger base = 0;
+  for (RCTUIView *segment in _segmentViews) {
+    if (![segment isKindOfClass:[EnrichedMarkdownInternalText class]]) {
+      continue;
+    }
+    ENRMPlatformTextView *segmentTextView = ((EnrichedMarkdownInternalText *)segment).textView;
+    if (segmentTextView == textView) {
+      return base;
+    }
+    base += ENRMGetAttributedText(segmentTextView).length;
+  }
+  return base;
+}
+
+- (void)applyMarkedRanges
+{
+  NSUInteger base = 0;
+  for (RCTUIView *segment in _segmentViews) {
+    if (![segment isKindOfClass:[EnrichedMarkdownInternalText class]]) {
+      continue;
+    }
+    ENRMPlatformTextView *textView = ((EnrichedMarkdownInternalText *)segment).textView;
+    NSUInteger length = ENRMGetAttributedText(textView).length;
+    ENRMApplyMarkedRanges(textView, _markedRanges ?: @[], base, _markColor);
+    base += length;
+  }
+}
+
+static BOOL ENRMMarkedRangesChanged(const std::vector<EnrichedMarkdownMarkedRangesStruct> &oldRanges,
+                                    const std::vector<EnrichedMarkdownMarkedRangesStruct> &newRanges)
+{
+  if (oldRanges.size() != newRanges.size()) {
+    return YES;
+  }
+  for (size_t i = 0; i < oldRanges.size(); i++) {
+    const auto &a = oldRanges[i];
+    const auto &b = newRanges[i];
+    if (a.id != b.id || a.start != b.start || a.end != b.end || a.active != b.active) {
+      return YES;
+    }
+  }
+  return NO;
+}
+
+static NSArray<ENRMMarkedRange *> *ENRMMarkedRangesFromProps(
+    const std::vector<EnrichedMarkdownMarkedRangesStruct> &ranges)
+{
+  NSMutableArray<ENRMMarkedRange *> *marks = [NSMutableArray arrayWithCapacity:ranges.size()];
+  for (const auto &range : ranges) {
+    if (range.start < 0 || range.end <= range.start) {
+      continue;
+    }
+    ENRMMarkedRange *mark = [[ENRMMarkedRange alloc] init];
+    mark.markId = [[NSString alloc] initWithUTF8String:range.id.c_str()];
+    mark.start = (NSUInteger)range.start;
+    mark.end = (NSUInteger)range.end;
+    mark.active = range.active;
+    [marks addObject:mark];
+  }
+  return marks;
 }
 
 - (void)textTapped:(ENRMTapRecognizer *)recognizer
@@ -1296,6 +1402,12 @@ Class<RCTComponentViewProtocol> EnrichedMarkdownCls(void)
     }
   }
 
+  NSString *markId = ENRMMarkIdAtTap(textView, recognizer);
+  if (markId) {
+    [self emitMarkPress:markId];
+    return;
+  }
+
   ENRMHandleTapOnTextView(textView, recognizer, ^(NSString *url) { [self emitLinkPress:url]; });
 }
 
@@ -1313,7 +1425,8 @@ Class<RCTComponentViewProtocol> EnrichedMarkdownCls(void)
           [strongSelf emitContextMenuItemPress:itemText
                                   selectedText:selectedText
                                 selectionStart:selectionStart
-                                  selectionEnd:selectionEnd];
+                                  selectionEnd:selectionEnd
+                                      textView:textView];
       };
   NSMutableArray<UIAction *> *customActions =
       ENRMBuildContextMenuActions(_contextMenuItemTexts, _contextMenuItemIcons, textView, range, handler);
