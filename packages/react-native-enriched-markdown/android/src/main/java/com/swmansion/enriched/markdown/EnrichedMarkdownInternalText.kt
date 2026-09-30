@@ -4,14 +4,18 @@ import android.content.Context
 import android.graphics.Canvas
 import android.os.Build
 import android.text.Layout
+import android.text.Spannable
 import android.util.AttributeSet
 import android.view.MotionEvent
 import com.swmansion.enriched.markdown.accessibility.AccessibilityLabels
 import com.swmansion.enriched.markdown.accessibility.AccessibleMarkdownTextView
+import com.swmansion.enriched.markdown.spans.MarkSpan
+import com.swmansion.enriched.markdown.spans.MarkedRange
 import com.swmansion.enriched.markdown.spoiler.SpoilerCapable
 import com.swmansion.enriched.markdown.spoiler.SpoilerOverlay
 import com.swmansion.enriched.markdown.spoiler.SpoilerOverlayDrawer
 import com.swmansion.enriched.markdown.utils.text.interaction.CheckboxTouchHelper
+import com.swmansion.enriched.markdown.utils.text.interaction.MarkTouchHelper
 import com.swmansion.enriched.markdown.utils.text.view.LinkLongPressMovementMethod
 import com.swmansion.enriched.markdown.utils.text.view.DoubleTapSelectionGuard
 import com.swmansion.enriched.markdown.utils.text.view.LongPressSlopGuard
@@ -37,6 +41,14 @@ class EnrichedMarkdownInternalText
 
     private val checkboxTouchHelper = CheckboxTouchHelper(this)
     private val longPressSlopGuard = LongPressSlopGuard(this)
+    private val markTouchHelper = MarkTouchHelper(this)
+
+    /** Fired with a marked range's id when it's tapped. */
+    var onMarkPressCallback: ((markId: String) -> Unit)?
+      get() = markTouchHelper.onMarkTap
+      set(value) {
+        markTouchHelper.onMarkTap = value
+      }
 
     var onTaskListItemPressCallback: ((taskIndex: Int, checked: Boolean, itemText: String) -> Unit)?
       get() = checkboxTouchHelper.onCheckboxTap
@@ -99,6 +111,16 @@ class EnrichedMarkdownInternalText
       super.onDetachedFromWindow()
     }
 
+    /** Repaints the marks inside this segment, whose first character sits at `base`. */
+    fun applyMarkedRanges(
+      marks: List<MarkedRange>,
+      base: Int,
+      color: Int?,
+    ) {
+      val spannable = text as? Spannable ?: return
+      MarkSpan.apply(spannable, marks, base, color)
+    }
+
     fun setIsSelectable(selectable: Boolean) {
       applySelectableState(selectable)
     }
@@ -143,6 +165,18 @@ class EnrichedMarkdownInternalText
           cancelJSTouchForCheckboxTap(event)
         }
         return true
+      }
+      // A tap on a mark reports the mark instead of reaching links or RN
+      // touch handlers; the text view is told the gesture was cancelled.
+      if (markTouchHelper.onTouchEvent(event) != null) {
+        val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+        super.onTouchEvent(cancel)
+        cancel.recycle()
+        parent?.requestDisallowInterceptTouchEvent(false)
+        return true
+      }
+      if (event.action == MotionEvent.ACTION_DOWN && markTouchHelper.isTracking) {
+        cancelJSTouchForCheckboxTap(event)
       }
       val editorEvent = DoubleTapSelectionGuard.eventForEditor(event)
       val result = super.onTouchEvent(editorEvent)

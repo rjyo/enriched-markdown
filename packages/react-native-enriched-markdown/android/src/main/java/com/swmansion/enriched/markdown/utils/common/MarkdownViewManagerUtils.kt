@@ -9,8 +9,10 @@ import com.swmansion.enriched.markdown.events.ContextMenuItemPressEvent
 import com.swmansion.enriched.markdown.events.CopyPressEvent
 import com.swmansion.enriched.markdown.events.LinkLongPressEvent
 import com.swmansion.enriched.markdown.events.LinkPressEvent
+import com.swmansion.enriched.markdown.events.MarkPressEvent
 import com.swmansion.enriched.markdown.events.TaskListItemPressEvent
 import com.swmansion.enriched.markdown.parser.Md4cFlags
+import com.swmansion.enriched.markdown.spans.MarkedRange
 import com.swmansion.enriched.markdown.utils.text.view.SelectionMenuConfig
 
 fun markdownEventTypeConstants(): MutableMap<String, Any> {
@@ -24,6 +26,7 @@ fun markdownEventTypeConstants(): MutableMap<String, Any> {
     mapOf("registrationName" to CopyPressEvent.EVENT_NAME)
   map[ContextMenuItemPressEvent.EVENT_NAME] =
     mapOf("registrationName" to ContextMenuItemPressEvent.EVENT_NAME)
+  map[MarkPressEvent.EVENT_NAME] = mapOf("registrationName" to MarkPressEvent.EVENT_NAME)
   return map
 }
 
@@ -72,6 +75,33 @@ fun emitCopyPress(
   eventDispatcher?.dispatchEvent(
     CopyPressEvent(surfaceId, view.id, code, language),
   )
+}
+
+fun emitMarkPress(
+  view: View,
+  markId: String,
+) {
+  val context = view.context as com.facebook.react.bridge.ReactContext
+  val surfaceId = UIManagerHelper.getSurfaceId(context)
+  val eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(context, view.id)
+  eventDispatcher?.dispatchEvent(MarkPressEvent(surfaceId, view.id, markId))
+}
+
+/** `markedRanges` prop entries; malformed or empty ranges are dropped, like iOS. */
+fun parseMarkedRanges(value: ReadableArray?): List<MarkedRange> {
+  if (value == null) return emptyList()
+  return (0 until value.size()).mapNotNull { index ->
+    val map = value.getMap(index) ?: return@mapNotNull null
+    val start = if (map.hasKey("start")) map.getInt("start") else return@mapNotNull null
+    val end = if (map.hasKey("end")) map.getInt("end") else return@mapNotNull null
+    if (start < 0 || end <= start) return@mapNotNull null
+    MarkedRange(
+      id = if (map.hasKey("id")) map.getString("id") ?: "" else "",
+      start = start,
+      end = end,
+      active = map.hasKey("active") && map.getBoolean("active"),
+    )
+  }
 }
 
 fun emitContextMenuItemPress(

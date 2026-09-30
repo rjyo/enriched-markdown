@@ -20,11 +20,13 @@ import com.swmansion.enriched.markdown.utils.common.emitContextMenuItemPress
 import com.swmansion.enriched.markdown.utils.common.emitCopyPress
 import com.swmansion.enriched.markdown.utils.common.emitLinkLongPress
 import com.swmansion.enriched.markdown.utils.common.emitLinkPress
+import com.swmansion.enriched.markdown.utils.common.emitMarkPress
 import com.swmansion.enriched.markdown.utils.common.emitTaskListItemPress
 import com.swmansion.enriched.markdown.utils.common.markdownEventTypeConstants
 import com.swmansion.enriched.markdown.utils.common.parseAccessibilityLabels
 import com.swmansion.enriched.markdown.utils.common.parseContextMenuItems
 import com.swmansion.enriched.markdown.utils.common.parseImageRequestHeaders
+import com.swmansion.enriched.markdown.utils.common.parseMarkedRanges
 import com.swmansion.enriched.markdown.utils.common.parseMd4cFlags
 import com.swmansion.enriched.markdown.utils.common.parseSelectionMenuConfig
 import com.swmansion.enriched.markdown.utils.text.interaction.TaskListToggleUtils
@@ -47,6 +49,10 @@ class EnrichedMarkdownManager :
 
     view.setOnLinkPressCallback { url ->
       emitLinkPress(view, url)
+    }
+
+    view.onMarkPressCallback = { markId ->
+      emitMarkPress(view, markId)
     }
 
     view.setOnLinkLongPressCallback { url ->
@@ -248,17 +254,20 @@ class EnrichedMarkdownManager :
     view.setContextMenuItems(parseContextMenuItems(value))
   }
 
-  // Marked ranges are iOS-only for now; the props exist so codegen's
-  // interface is satisfied.
+  @ReactProp(name = "markedRanges")
   override fun setMarkedRanges(
     view: EnrichedMarkdown?,
     value: ReadableArray?,
-  ) = Unit
+  ) {
+    view?.setMarkedRanges(parseMarkedRanges(value))
+  }
 
   override fun setMarkColor(
     view: EnrichedMarkdown?,
     value: Int?,
-  ) = Unit
+  ) {
+    view?.setMarkColor(value)
+  }
 
   @ReactProp(name = "imageRequestHeaders")
   override fun setImageRequestHeaders(

@@ -15,6 +15,7 @@ import com.facebook.react.uimanager.StateWrapper
 import com.swmansion.enriched.markdown.accessibility.AccessibilityLabels
 import com.swmansion.enriched.markdown.parser.Md4cFlags
 import com.swmansion.enriched.markdown.parser.Parser
+import com.swmansion.enriched.markdown.spans.MarkedRange
 import com.swmansion.enriched.markdown.spoiler.SpoilerOverlay
 import com.swmansion.enriched.markdown.styles.StyleConfig
 import com.swmansion.enriched.markdown.utils.common.BreakStrategyUtils
@@ -104,6 +105,9 @@ class EnrichedMarkdown
     private var onCopyPressCallback: ((String, String) -> Unit)? = null
     private var contextMenuItemTexts: List<String> = emptyList()
     var onContextMenuItemPressCallback: ((itemText: String, selectedText: String, selectionStart: Int, selectionEnd: Int) -> Unit)? = null
+    var onMarkPressCallback: ((markId: String) -> Unit)? = null
+    private var markedRanges: List<MarkedRange> = emptyList()
+    private var markColor: Int? = null
     var spoilerOverlay: SpoilerOverlay = SpoilerOverlay.PARTICLES
       set(value) {
         if (field == value) return
@@ -262,7 +266,44 @@ class EnrichedMarkdown
     fun setContextMenuItems(items: List<String>) {
       contextMenuItemTexts = items
       segmentViews.filterIsInstance<EnrichedMarkdownInternalText>().forEach {
-        it.setContextMenuItems(items, ::forwardContextMenuItemPress)
+        it.setContextMenuItems(items, contextMenuItemPressHandler(it))
+      }
+    }
+
+    fun setMarkedRanges(ranges: List<MarkedRange>) {
+      if (markedRanges == ranges) return
+      markedRanges = ranges
+      applyMarkedRanges()
+    }
+
+    fun setMarkColor(color: Int?) {
+      if (markColor == color) return
+      markColor = color
+      applyMarkedRanges()
+    }
+
+    /**
+     * Characters before `textView` across the text segments above it; tables,
+     * code blocks and math count as zero. The space markedRanges uses.
+     */
+    private fun globalOffsetOf(textView: EnrichedMarkdownInternalText): Int {
+      var base = 0
+      for (segment in segmentViews) {
+        if (segment !is EnrichedMarkdownInternalText) continue
+        if (segment === textView) return base
+        base += segment.text?.length ?: 0
+      }
+      return base
+    }
+
+    /** Paints the current text; re-rendered segments come back unmarked, so this runs after every render. */
+    private fun applyMarkedRanges() {
+      var base = 0
+      for (segment in segmentViews) {
+        if (segment !is EnrichedMarkdownInternalText) continue
+        val length = segment.text?.length ?: 0
+        segment.applyMarkedRanges(markedRanges, base, markColor)
+        base += length
       }
     }
 
@@ -324,14 +365,14 @@ class EnrichedMarkdown
       }
     }
 
-    private fun forwardContextMenuItemPress(
-      itemText: String,
-      selectedText: String,
-      selectionStart: Int,
-      selectionEnd: Int,
-    ) {
-      onContextMenuItemPressCallback?.invoke(itemText, selectedText, selectionStart, selectionEnd)
-    }
+    /** Reports the selection view-global (segment-local + the segment's base), like iOS. */
+    private fun contextMenuItemPressHandler(
+      textView: EnrichedMarkdownInternalText,
+    ): (String, String, Int, Int) -> Unit =
+      { itemText, selectedText, selectionStart, selectionEnd ->
+        val base = globalOffsetOf(textView)
+        onContextMenuItemPressCallback?.invoke(itemText, selectedText, selectionStart + base, selectionEnd + base)
+      }
 
     private fun recreateStyleConfig() {
       markdownStyleMap?.let {
@@ -432,6 +473,7 @@ class EnrichedMarkdown
       segmentViews.addAll(result.views)
       segmentSignatures.clear()
       segmentSignatures.addAll(result.signatures)
+      applyMarkedRanges()
 
       // A just-closed block has unchanged content, so the reconciler reuses it
       // without an update; sync pending here to trigger its deferred highlight.
@@ -572,8 +614,9 @@ class EnrichedMarkdown
         }
 
         if (contextMenuItemTexts.isNotEmpty()) {
-          setContextMenuItems(contextMenuItemTexts, ::forwardContextMenuItemPress)
+          setContextMenuItems(contextMenuItemTexts, contextMenuItemPressHandler(this))
         }
+        onMarkPressCallback = { markId -> this@EnrichedMarkdown.onMarkPressCallback?.invoke(markId) }
 
         applySelectionColors(selectionColor, selectionHandleColor)
       }
