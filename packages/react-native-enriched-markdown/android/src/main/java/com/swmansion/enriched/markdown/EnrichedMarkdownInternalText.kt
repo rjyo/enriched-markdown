@@ -19,6 +19,7 @@ import com.swmansion.enriched.markdown.utils.text.interaction.MarkTouchHelper
 import com.swmansion.enriched.markdown.utils.text.view.LinkLongPressMovementMethod
 import com.swmansion.enriched.markdown.utils.text.view.DoubleTapSelectionGuard
 import com.swmansion.enriched.markdown.utils.text.view.LongPressSlopGuard
+import com.swmansion.enriched.markdown.utils.text.view.ScrollTouchGuard
 import com.swmansion.enriched.markdown.utils.text.view.SelectionMenuConfig
 import com.swmansion.enriched.markdown.utils.text.view.applySelectableState
 import com.swmansion.enriched.markdown.utils.text.view.cancelJSTouchForCheckboxTap
@@ -41,6 +42,7 @@ class EnrichedMarkdownInternalText
 
     private val checkboxTouchHelper = CheckboxTouchHelper(this)
     private val longPressSlopGuard = LongPressSlopGuard(this)
+    private val scrollTouchGuard = ScrollTouchGuard(this)
     private val markTouchHelper = MarkTouchHelper(this)
 
     /** Fired with a marked range's id when it's tapped. */
@@ -106,6 +108,7 @@ class EnrichedMarkdownInternalText
     }
 
     override fun onDetachedFromWindow() {
+      scrollTouchGuard.onDetachedFromWindow()
       spoilerOverlayDrawer?.stop()
       spoilerOverlayDrawer = null
       super.onDetachedFromWindow()
@@ -151,6 +154,7 @@ class EnrichedMarkdownInternalText
 
     override fun onAttachedToWindow() {
       super.onAttachedToWindow()
+      scrollTouchGuard.onAttachedToWindow()
       refreshSelectionControllers()
     }
 
@@ -182,6 +186,7 @@ class EnrichedMarkdownInternalText
       val result = super.onTouchEvent(editorEvent)
       if (editorEvent !== event) editorEvent.recycle()
       longPressSlopGuard.onTouchEvent(event)
+      scrollTouchGuard.onTouchEvent(event)
       when (event.action) {
         MotionEvent.ACTION_DOWN -> cancelJSTouchForLinkTap(event)
         else -> reallowParentInterceptIfLinkReleased()
