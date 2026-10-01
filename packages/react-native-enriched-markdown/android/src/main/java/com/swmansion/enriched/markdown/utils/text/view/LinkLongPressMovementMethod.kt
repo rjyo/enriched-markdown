@@ -31,6 +31,10 @@ class LinkLongPressMovementMethod : ArrowKeyMovementMethod() {
 
   var isLinkTouchActive: Boolean = false
     private set
+
+  /** The parent was asked not to intercept for this link touch. */
+  var holdsParentIntercept: Boolean = false
+
   private var isTouchWithinTextBounds: Boolean = true
 
   override fun onTouchEvent(
