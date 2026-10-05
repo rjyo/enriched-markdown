@@ -61,6 +61,13 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(link?.attribute("url"), "https://reactnative.dev")
     }
 
+    func testBareURLExcludesSentenceEndingPeriod() {
+        let ast = parser.parseMarkdown("Merged https://github.com/a/b/pull/7. Next https://x.dev/v1.2/a.tar.gz ok")
+
+        let urls = ast.all(ofType: .link).map { $0.attribute("url") }
+        XCTAssertEqual(urls, ["https://github.com/a/b/pull/7", "https://x.dev/v1.2/a.tar.gz"])
+    }
+
     func testParsesHeadingWithLevel() {
         let ast = parser.parseMarkdown("## Section")
 

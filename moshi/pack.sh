@@ -4,7 +4,8 @@
 # Our commits touch native code and, at most, the codegen specs
 # (src/*NativeComponent.ts), so instead of the full upstream build (yarn,
 # vendored grammars, RaTeX) this takes the published npm package of the
-# upstream base version and overlays this branch's ios/ and android/ sources.
+# upstream base version and overlays this branch's ios/, android/ and cpp/
+# (the shared md4c parser, a symlink to ../core/cpp) sources.
 # Specs ship verbatim as .ts in both src/ and lib/module/ (the app's babel
 # codegen plugin reads them), so they are overlaid too, and the package's
 # checked-in codegen output (includesGeneratedCode) is regenerated from them
@@ -30,6 +31,7 @@ fi
 for dir in ios android; do
   rsync -a --exclude generated --exclude build "$pkg/$dir/" "$work/package/$dir/"
 done
+rsync -a "$pkg/cpp/" "$work/package/cpp/"
 if [[ -n $changed ]]; then
   for spec in $changed; do
     name=$(basename "$spec")

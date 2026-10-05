@@ -4523,6 +4523,13 @@ md_analyze_permissive_autolink(MD_CTX* ctx, int mark_index)
                         _T('\0'), NULL, _T(".-+_"), &right_cursor) < 0)
                 return;
         }
+
+        /* The path and query segments accept '.' as a word character, so a
+         * sentence-ending period right after the URL ("see https://x.y/z.")
+         * got swallowed into it. Like GFM, a trailing period is never part of
+         * the link. */
+        while(end > opener->end  &&  CH(end-1) == _T('.'))
+            end--;
     }
 
     /* Verify there's line boundary, whitespace, allowed punctuation or
