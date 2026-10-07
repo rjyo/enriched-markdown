@@ -15,6 +15,11 @@ static inline void ENRMAttachLayoutManager(ENRMPlatformTextView *textView, Style
     return;
   }
   layoutManager.allowsNonContiguousLayout = NO;
+  // Match the view-free measurement (ENRMMeasureAttributedTextViewFree): with
+  // font leading on, a font whose hhea lineGap is non-zero (Ioskeley: ~1pt at
+  // 15pt) draws every line taller than the clamped lineHeight it was measured
+  // at, so multi-line blocks clip their last line.
+  layoutManager.usesFontLeading = NO;
   object_setClass(layoutManager, [TextViewLayoutManager class]);
   if (config != nil) {
     [layoutManager setValue:config forKey:@"config"];
