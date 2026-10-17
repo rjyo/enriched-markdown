@@ -18,6 +18,7 @@ NSMutableArray<UIAction *> *_Nullable ENRMBuildContextMenuActions(NSArray<NSStri
   NSUInteger selectionStart = selectedRange.location;
   NSUInteger selectionEnd = NSMaxRange(selectedRange);
 
+  __weak UITextView *weakTextView = textView;
   NSMutableArray<UIAction *> *actions = [NSMutableArray arrayWithCapacity:itemTexts.count];
   [itemTexts enumerateObjectsUsingBlock:^(NSString *itemText, NSUInteger index, BOOL *_) {
     NSString *iconName = iconNames ? iconNames[index] : nil;
@@ -27,6 +28,10 @@ NSMutableArray<UIAction *> *_Nullable ENRMBuildContextMenuActions(NSArray<NSStri
                                       identifier:nil
                                          handler:^(__kindof UIAction *_) {
                                            handler(itemText, selectedText, selectionStart, selectionEnd);
+                                           // A custom item consumes the selection, as Android's
+                                           // finished action mode does; leaving it up reads as
+                                           // the action not having happened.
+                                           weakTextView.selectedTextRange = nil;
                                          }]];
   }];
   return actions;
